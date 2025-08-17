@@ -30,6 +30,18 @@ input double          MaxLotAllowed    = 10.0;              // Maximum allowed l
 input string          TradeComment     = "HedgingEA_XAUUSD"; // Comment for trades
 input bool            EnableLogging    = true;              // Enable/Disable detailed logging
 
+input group           "--- Trading Downtime 1---"
+input int             Downtime1_Start_Hour = 3;              // Downtime start hour (0-23)
+input int             Downtime1_Start_Minute = 30;           // Downtime start minute (0-59)
+input int             Downtime1_End_Hour = 3;               // Downtime end hour (0-23)
+input int             Downtime1_End_Minute = 50;             // Downtime end minute (0-59)
+
+input group           "--- Trading Downtime 2---"
+input int             Downtime2_Start_Hour = 18;              // Downtime start hour (0-23)
+input int             Downtime2_Start_Minute = 00;           // Downtime start minute (0-59)
+input int             Downtime2_End_Hour = 19;               // Downtime end hour (0-23)
+input int             Downtime2_End_Minute = 30;             // Downtime end minute (0-59)
+
 //--- Global objects and variables
 CTrade        trade;
 int           fast_ma_handle;
@@ -88,6 +100,9 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
+   if(!IsTradingAllowed()) {
+      return;
+   }
    int my_trades_count = CountMyTrades();
 
    if(my_trades_count == 0)
@@ -100,6 +115,46 @@ void OnTick()
    }
 }
 
+//+------------------------------------------------------------------+
+//| Checks if trading is allowed based on user-defined downtime      |
+//+------------------------------------------------------------------+
+bool IsTradingAllowed()
+{
+    MqlDateTime now;
+    TimeCurrent(now);
+    int current_total_minutes = now.hour * 60 + now.min;
+
+    // Check downtime 1
+    if(IsWithinDowntime(current_total_minutes,
+                        Downtime1_Start_Hour * 60 + Downtime1_Start_Minute,
+                        Downtime1_End_Hour * 60 + Downtime1_End_Minute))
+    {
+        return false;
+    }
+
+    // Check downtime 2
+    if(IsWithinDowntime(current_total_minutes,
+                        Downtime2_Start_Hour * 60 + Downtime2_Start_Minute,
+                        Downtime2_End_Hour * 60 + Downtime2_End_Minute))
+    {
+        return false;
+    }
+
+    return true; // Trading is allowed if not in either downtime
+}
+bool IsWithinDowntime(int current_minutes, int start_minutes, int end_minutes)
+{
+    if(start_minutes <= end_minutes)
+    {
+        // Normal window (e.g. 03:30 → 03:50)
+        return (current_minutes >= start_minutes && current_minutes <= end_minutes);
+    }
+    else
+    {
+        // Window that crosses midnight (e.g. 23:00 → 02:00)
+        return (current_minutes >= start_minutes || current_minutes <= end_minutes);
+    }
+}
 //+------------------------------------------------------------------+
 //| Checks for a new MA crossover signal                             |
 //+------------------------------------------------------------------+
@@ -257,22 +312,26 @@ void ManageOpenTrades(int current_trades_count)
     if(open_new_hedge)
     {
        int next_hedge_index = hedge_count + 1;
-       OpenHedgeTrade(base_trade_type, next_hedge_index);
-       prev_trades_count = current_trades_count + 1;
+       bool success = OpenHedgeTrade(base_trade_type, next_hedge_index);
+       if(success) {
+         prev_trades_count = current_trades_count + 1;
+       } else {
+         prev_trades_count = current_trades_count;
+       }
     }
 }
 
 //+------------------------------------------------------------------+
 //| Opens a new hedge trade                                          |
 //+------------------------------------------------------------------+
-void OpenHedgeTrade(ENUM_POSITION_TYPE base_trade_type, int hedge_index)
+bool OpenHedgeTrade(ENUM_POSITION_TYPE base_trade_type, int hedge_index)
 {
     ENUM_ORDER_TYPE hedge_type = (base_trade_type == POSITION_TYPE_BUY) ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
     double price = (hedge_type == ORDER_TYPE_BUY) ? SymbolInfoDouble(current_symbol, SYMBOL_ASK) : SymbolInfoDouble(current_symbol, SYMBOL_BID);
 
     double lot = NormalizeLot(PrimaryLot * pow(HedgeMultiplier, hedge_index));
     
-    if(lot <= 0) return;
+    if(lot <= 0) return false;
 
     double tp_price = 0;
     double sl_price = 0;
@@ -296,10 +355,12 @@ void OpenHedgeTrade(ENUM_POSITION_TYPE base_trade_type, int hedge_index)
     if(trade.ResultRetcode() != TRADE_RETCODE_DONE)
     {
         Log("Failed to open hedge trade. Error: " + (string)trade.ResultRetcode() + " - " + trade.ResultComment());
+        return false;
     }
     else
     {
         Log("Hedge " + type_str + " trade opened successfully. Ticket: " + (string)trade.ResultDeal());
+        return true;
     }
 }
 
