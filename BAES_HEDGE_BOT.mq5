@@ -116,11 +116,13 @@ void CheckForNewSignal()
    // Buy Signal: Fast MA crossed ABOVE Slow MA on the most recently closed bar
    if(fast_ma[2] < slow_ma[2] && fast_ma[1] > slow_ma[1])
    {
+      Log("Fast MA crossed over, Before: Fast - " + DoubleToString(fast_ma[2], 5) + ", Slow - " + DoubleToString(slow_ma[2], 5) + "After: Fast - " + DoubleToString(fast_ma[1], 5) + ", Slow - " + DoubleToString(slow_ma[1], 5));
       OpenPrimaryTrade(ORDER_TYPE_SELL);
    }
    // Sell Signal: Fast MA crossed BELOW Slow MA on the most recently closed bar
    else if(fast_ma[2] > slow_ma[2] && fast_ma[1] < slow_ma[1])
    {
+      Log("Slow MA crossed over, Before: Fast - " + DoubleToString(fast_ma[2], 5) + ", Slow - " + DoubleToString(slow_ma[2], 5) + "After: Fast - " + DoubleToString(fast_ma[1], 5) + ", Slow - " + DoubleToString(slow_ma[1], 5));
       OpenPrimaryTrade(ORDER_TYPE_BUY);
    }
 }
@@ -149,7 +151,6 @@ void OpenPrimaryTrade(ENUM_ORDER_TYPE type)
    }
    
    string type_str = (type == ORDER_TYPE_BUY) ? "BUY" : "SELL";
-   Log("MA Crossover Signal: " + type_str + ". Opening primary trade...");
 
    trade.PositionOpen(current_symbol, type, lot, price, sl_price, tp_price, TradeComment);
    
@@ -288,7 +289,6 @@ void OpenHedgeTrade(ENUM_POSITION_TYPE base_trade_type, int hedge_index)
     }
     
     string type_str = (hedge_type == ORDER_TYPE_BUY) ? "BUY" : "SELL";
-    Log("Hedge condition met. Opening hedge #" + (string)hedge_index + " (" + type_str + ")");
 
     string hedge_comment = TradeComment + " Hedge";
     trade.PositionOpen(current_symbol, hedge_type, lot, price, sl_price, tp_price, hedge_comment);
@@ -353,12 +353,24 @@ double NormalizeLot(double lot)
 }
 
 //+------------------------------------------------------------------+
-//| Custom logging function                                          |
+//| Custom logging function - now writes to a file in MQL5/Files/   |
 //+------------------------------------------------------------------+
 void Log(const string message)
 {
    if(EnableLogging)
    {
+      string filename = "BAES_HEDGE_BOT_Logs.txt";
+      int file_handle = FileOpen(filename, FILE_WRITE|FILE_SHARE_WRITE|FILE_TXT);
+     
+      if(file_handle != INVALID_HANDLE)
+      {
+         string timestamp = TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+         string log_message = timestamp + " - " + "HedgingEA [" + current_symbol + "] - " + message;
+         FileWriteString(file_handle, log_message + "\n");
+         FileClose(file_handle);
+      }
+      
+      // Still print to the journal for real-time visibility
       Print("HedgingEA [" + current_symbol + "] - " + message);
    }
 }
