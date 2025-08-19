@@ -421,13 +421,14 @@ void Log(const string message)
    if(EnableLogging)
    {
       string filename = "BAES_HEDGE_BOT_Logs.txt";
-      int file_handle = FileOpen(filename, FILE_WRITE|FILE_SHARE_WRITE|FILE_TXT);
+      int file_handle = FileOpen(filename, FILE_READ|FILE_WRITE|FILE_SHARE_WRITE|FILE_TXT);
      
       if(file_handle != INVALID_HANDLE)
       {
+         FileSeek(file_handle, 0, SEEK_END);
          string timestamp = TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS);
          string log_message = timestamp + " - " + "HedgingEA [" + current_symbol + "] - " + message;
-         FileWriteString(file_handle, log_message + "\n");
+         FileWriteString(file_handle, log_message + "\r\n");
          FileClose(file_handle);
       }
       
