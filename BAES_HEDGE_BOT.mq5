@@ -30,17 +30,17 @@ input double          MaxLotAllowed    = 10.0;              // Maximum allowed l
 input string          TradeComment     = "HedgingEA_XAUUSD"; // Comment for trades
 input bool            EnableLogging    = true;              // Enable/Disable detailed logging
 
-input group           "--- Trading Downtime 1---"
-input int             Downtime1_Start_Hour = 3;              // Downtime start hour (0-23)
-input int             Downtime1_Start_Minute = 30;           // Downtime start minute (0-59)
-input int             Downtime1_End_Hour = 3;               // Downtime end hour (0-23)
-input int             Downtime1_End_Minute = 50;             // Downtime end minute (0-59)
+input group           "--- Trading Downtime 1---"
+input int             Downtime1_Start_Hour = 3;              // Downtime start hour (0-23)
+input int             Downtime1_Start_Minute = 30;           // Downtime start minute (0-59)
+input int             Downtime1_End_Hour = 3;               // Downtime end hour (0-23)
+input int             Downtime1_End_Minute = 50;             // Downtime end minute (0-59)
 
-input group           "--- Trading Downtime 2---"
-input int             Downtime2_Start_Hour = 18;              // Downtime start hour (0-23)
-input int             Downtime2_Start_Minute = 00;           // Downtime start minute (0-59)
-input int             Downtime2_End_Hour = 19;               // Downtime end hour (0-23)
-input int             Downtime2_End_Minute = 30;             // Downtime end minute (0-59)
+input group           "--- Trading Downtime 2---"
+input int             Downtime2_Start_Hour = 18;              // Downtime start hour (0-23)
+input int             Downtime2_Start_Minute = 00;           // Downtime start minute (0-59)
+input int             Downtime2_End_Hour = 19;               // Downtime end hour (0-23)
+input int             Downtime2_End_Minute = 30;             // Downtime end minute (0-59)
 
 //--- Global objects and variables
 CTrade        trade;
@@ -101,8 +101,8 @@ void OnDeinit(const int reason)
 void OnTick()
 {
    if(!IsTradingAllowed()) {
-      return;
-   }
+      return;
+   }
    int my_trades_count = CountMyTrades();
 
    if(my_trades_count == 0)
@@ -116,7 +116,7 @@ void OnTick()
 }
 
 //+------------------------------------------------------------------+
-//| Checks if trading is allowed based on user-defined downtime      |
+//| Checks if trading is allowed based on user-defined downtime      |
 //+------------------------------------------------------------------+
 bool IsTradingAllowed()
 {
@@ -322,7 +322,7 @@ void ManageOpenTrades(int current_trades_count)
 }
 
 //+------------------------------------------------------------------+
-//| Opens a new hedge trade                                          |
+//| Opens a new hedge trade (with lot-splitting if > 3 lots)         |
 //+------------------------------------------------------------------+
 bool OpenHedgeTrade(ENUM_POSITION_TYPE base_trade_type, int hedge_index)
 {
@@ -350,18 +350,32 @@ bool OpenHedgeTrade(ENUM_POSITION_TYPE base_trade_type, int hedge_index)
     string type_str = (hedge_type == ORDER_TYPE_BUY) ? "BUY" : "SELL";
 
     string hedge_comment = TradeComment + " Hedge";
-    trade.PositionOpen(current_symbol, hedge_type, lot, price, sl_price, tp_price, hedge_comment);
-   
-    if(trade.ResultRetcode() != TRADE_RETCODE_DONE)
+
+    // --- Lot splitting if above 3
+    double remaining_lot = lot;
+    double max_chunk = 3.0;
+    bool all_success = true;
+
+    while(remaining_lot > 0)
     {
-        Log("Failed to open hedge trade. Error: " + (string)trade.ResultRetcode() + " - " + trade.ResultComment());
-        return false;
+        double chunk = (remaining_lot > max_chunk) ? max_chunk : remaining_lot;
+        trade.PositionOpen(current_symbol, hedge_type, chunk, price, sl_price, tp_price, hedge_comment);
+       
+        if(trade.ResultRetcode() != TRADE_RETCODE_DONE)
+        {
+            Log("Failed to open hedge trade (" + type_str + ", chunk " + DoubleToString(chunk,2) + "). Error: " 
+                + (string)trade.ResultRetcode() + " - " + trade.ResultComment());
+            all_success = false;
+        }
+        else
+        {
+            Log("Hedge " + type_str + " trade opened successfully. Ticket: " + (string)trade.ResultDeal() + 
+                " (Lot: " + DoubleToString(chunk,2) + ")");
+        }
+        remaining_lot -= chunk;
     }
-    else
-    {
-        Log("Hedge " + type_str + " trade opened successfully. Ticket: " + (string)trade.ResultDeal());
-        return true;
-    }
+
+    return all_success;
 }
 
 
