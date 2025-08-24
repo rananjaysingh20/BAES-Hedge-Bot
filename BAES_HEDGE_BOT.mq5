@@ -250,13 +250,13 @@ void CheckForNewSignal()
    if(fast_ma[2] < slow_ma[2] && fast_ma[1] > slow_ma[1])
    {
       Log("BUY Signal Detected: Fast MA crossed above Slow MA.");
-      OpenPrimaryTrade(ORDER_TYPE_BUY);
+      OpenPrimaryTrade(ORDER_TYPE_SELL);
    }
    // Sell Signal: Fast MA crossed BELOW Slow MA on the most recently closed bar
    else if(fast_ma[2] > slow_ma[2] && fast_ma[1] < slow_ma[1])
    {
       Log("SELL Signal Detected: Fast MA crossed below Slow MA.");
-      OpenPrimaryTrade(ORDER_TYPE_SELL);
+      OpenPrimaryTrade(ORDER_TYPE_BUY);
    }
 }
 
@@ -290,8 +290,11 @@ void OpenPrimaryTrade(ENUM_ORDER_TYPE type)
    }
    else
    {
+      //--- Enhanced Logging
       Log("Primary " + string(type == ORDER_TYPE_BUY ? "BUY" : "SELL") + 
-          " opened. Deal: " + (string)trade.ResultDeal());
+          " opened. Deal: " + (string)trade.ResultDeal() + 
+          ", TP: " + DoubleToString(tp_price, _Digits) + 
+          ", SL: " + DoubleToString(sl_price, _Digits));
 
       //--- A new cycle begins. Set state and place the first hedge.
       g_in_active_cycle       = true;
@@ -359,8 +362,12 @@ bool PlacePendingHedgeOrder(ENUM_ORDER_TYPE type, double entry_price, int hedge_
              (string)trade.ResultRetcode() + " - " + trade.ResultComment());
          all_ok = false;
       } else {
+         //--- Enhanced Logging
          Log("Placed pending hedge (" + EnumToString(type) + ") @ " + DoubleToString(entry_price,_Digits) +
-             ", lot " + DoubleToString(chunk,2) + ", ticket " + (string)trade.ResultOrder());
+             ", lot " + DoubleToString(chunk,2) + 
+             ", TP: " + DoubleToString(tp, _Digits) + 
+             ", SL: " + DoubleToString(sl, _Digits) + 
+             ", ticket " + (string)trade.ResultOrder());
       }
       remaining -= chunk;
       if (remaining < SymbolInfoDouble(current_symbol, SYMBOL_VOLUME_MIN)) break;
